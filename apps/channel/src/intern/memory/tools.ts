@@ -1,9 +1,9 @@
 import { defineChannelTool, type ChannelToolContext } from '@copilotkit/channels';
 import { z } from 'zod';
-import { ObservationSchema, type Owner, type SourceMessage } from './model';
+import { ObservationSchema, type Owner, type SourceMessage, type CurrentSource } from './model';
 import { PersonalMemory } from './store';
 
-export type MemoryScope = { owner: Owner; sources: SourceMessage[] };
+export type MemoryScope = { owner: Owner; sources: SourceMessage[]; currentSource?: CurrentSource };
 /** The Slack integration must authenticate workspace, private destination, and
  * selected-thread access before returning this scope. Never derive it from LLM arguments. */
 export type ResolveMemoryScope = (ctx: ChannelToolContext) => Promise<MemoryScope>;
@@ -28,11 +28,11 @@ export function createMemoryTools(memory: PersonalMemory, resolveScope: ResolveM
   });
   const record = defineChannelTool({
     name: 'record_personal_memory',
-    description: 'Record an evidence-backed explicit personal commitment, linked blocker, later blocker resolution, or clarification question. Cite exact source IDs and quotes. Read first, reuse existing IDs, and choose clarification for uncertain intent or cross-thread matches. Recording a change queues a notice; it does not send one.',
+    description: 'Record a commitment, blocker, resolution, clarification, or explicit owner-requested task completion/correction/undo. For complete/correct/undo cite the current owner message. Read first, reuse exact item/change IDs, and clarify uncertain targets. Undo only the latest eligible completion/correction. Recording queues a notice; it does not send one.',
     parameters: z.object({ observation: ObservationSchema }).strict(),
     async handler(args, ctx) {
-      const { owner, sources } = await scope(ctx);
-      return memory.apply(owner, args.observation, sources);
+      const { owner, sources, currentSource } = await scope(ctx);
+      return memory.apply(owner, args.observation, sources, currentSource);
     },
   });
   return { read, record, tools: [read, record] };
@@ -49,4 +49,9 @@ Retain date-only deadlines with their timezone; resolve relative dates against t
 Use clarification when the date, intent, owner, or target is uncertain. Do not invent source IDs, URLs or quotes.
 Reuse existing items; do not recreate a commitment using a different quote or evidence subset.
 After changes, briefly report what was recorded and what remains unresolved. Stored notices are not proof of delivery.
-This slice has no calendar, email, completion/undo, or colleague-follow-up tools. Do not claim those actions occurred.`;
+Complete a task only from the owner's explicit completion statement in the CURRENT message. A blocker approval is not task completion.
+Correct an existing task's title/deadline only when explicitly requested; preserve its ID. Use deadline kind unknown only to explicitly clear a deadline.
+For undo, read mutations and select the latest non-undone completion/correction changeId. Ask if the target is ambiguous.
+Undo does not remove tasks, undo blocker resolutions, or retract already delivered notices. Cite the CURRENT owner's request for complete/correct/undo, not an older message.
+These explicit actions require currentSource from the trusted transport; never invent it. If unavailable, explain that the integration cannot authorize the change.
+This slice has no calendar, email, or colleague-follow-up tools. Do not claim those actions occurred.`;

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "channels": [
+    {
+      "name": "intern-bot",
+      "displayName": "Intern Bot",
+      "providers": {
+        "slack": {
+          "env": {
+            "botToken": "INTELLIGENCE_CHANNEL_INTERN_BOT_SLACK_BOT_TOKEN",
+            "signingSecret": "INTELLIGENCE_CHANNEL_INTERN_BOT_SLACK_SIGNING_SECRET"
+          }
+        }
+      }
+    }
+  ]
+}

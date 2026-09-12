@@ -2,6 +2,7 @@ import { AbstractAgent } from "@ag-ui/client";
 import type { BaseEvent, RunAgentInput } from "@ag-ui/core";
 import { makeAgent } from "agent-core";
 import { Observable, type Subscription } from "rxjs";
+import { INTERN_PROMPT } from "./intern/prompt";
 
 type ChannelAgentFactory = (threadId: string) => AbstractAgent;
 
@@ -81,5 +82,5 @@ export class ChannelRunAgent extends AbstractAgent {
 }
 
 export function makeChannelAgent(threadId: string) {
-  return new ChannelRunAgent(makeAgent, threadId);
+  return new ChannelRunAgent(id => makeAgent(id, { prompt: INTERN_PROMPT, workplace: false }), threadId);
 }

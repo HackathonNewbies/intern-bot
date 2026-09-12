@@ -10,9 +10,9 @@ const evidence = (item: MemoryItem) => [...new Set([...item.evidence, ...(item.r
 export function briefingText(snapshot: WorkSnapshot) {
   const { memory, profile } = snapshot;
   const lines = [snapshot.fixture ? 'Example briefing — fictional data' : 'Your work briefing', `As of ${snapshot.generatedAt}`, profile.role ? `Role: ${clean(profile.role)}` : '', ...profile.goals.map(goal => `Goal: ${clean(goal)}`)];
-  const upcoming = memory.commitments.filter(item => item.deadline && item.deadline.kind !== 'unknown');
-  const backlog = memory.commitments.filter(item => !item.deadline || item.deadline.kind === 'unknown');
-  const sections: Array<[string, MemoryItem[]]> = [['Coming up', upcoming], ['Waiting — no resolution found in tracked threads', memory.blockers.filter(item => item.status === 'open')], ['Backlog — no date confirmed', backlog], ['Resolved dependencies — commitments remain open', memory.blockers.filter(item => item.status === 'resolved')], ['Needs clarification', memory.questions]];
+  const upcoming = memory.commitments.filter(item => item.status === 'open' && item.deadline && item.deadline.kind !== 'unknown');
+  const backlog = memory.commitments.filter(item => item.status === 'open' && (!item.deadline || item.deadline.kind === 'unknown'));
+  const sections: Array<[string, MemoryItem[]]> = [['Coming up', upcoming], ['Completed', memory.commitments.filter(item => item.status === 'completed')], ['Waiting — no resolution found in tracked threads', memory.blockers.filter(item => item.status === 'open')], ['Backlog — no date confirmed', backlog], ['Resolved dependencies — commitments remain open', memory.blockers.filter(item => item.status === 'resolved')], ['Needs clarification', memory.questions]];
   for (const [title, items] of sections) {
     if (!items.length) continue;
     lines.push(`\n**${title}**`);

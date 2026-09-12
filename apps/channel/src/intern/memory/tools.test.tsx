@@ -7,7 +7,7 @@ import type { ChannelToolContext } from '@copilotkit/channels';
 import { createMemoryTools } from './tools';
 import { PersonalMemory } from './store';
 import { z } from 'zod';
-import { ItemSchema } from './model';
+import { ItemSchema, type Observation } from './model';
 const mutationResult = z.object({ item: ItemSchema, changed: z.boolean() });
 
 const owner = { workspaceId: 'demo', userId: 'alex' };
@@ -21,6 +21,33 @@ const sources = [
 ];
 const context = { user: { id: 'canonical-alex' }, actor: { id: 'alex', kind: 'human' }, platform: 'slack' } as ChannelToolContext;
 const ref = (i: number) => ({ threadId: sources[i].threadId, messageId: sources[i].messageId, quote: sources[i].text });
+
+test('explicit lifecycle tools use trusted current evidence and support completion, correction and undo', async () => {
+  const memory = new PersonalMemory(join(await mkdtemp(join(tmpdir(), 'intern-lifecycle-tools-')), 'state.json'));
+  const task = await memory.apply(owner, { kind: 'commitment', title: 'Send Acme proposal', deadline: { kind: 'unknown' }, evidence: [ref(0)] }, sources);
+  const current = { ...sources[0], messageId: '4', sentAt: '2026-09-14T12:00:00+08:00', text: 'I sent the Acme proposal.' };
+  const tools = createMemoryTools(memory, async () => ({ owner, sources: [...sources, current], currentSource: { threadId: current.threadId, messageId: current.messageId } }));
+  const observation: Observation = { kind: 'complete', taskId: task.item.id, evidence: [{ threadId: current.threadId, messageId: current.messageId, quote: current.text }] };
+  assert.equal(tools.record.parameters.safeParse({ observation }).success, true);
+  const completed = mutationResult.parse(await tools.record.handler({ observation }, context));
+  assert.equal(completed.item.status, 'completed');
+  const noCurrent = createMemoryTools(memory, async () => ({ owner, sources: [...sources, current] }));
+  await assert.rejects(async () => noCurrent.record.handler({ observation }, context), /current|trigger/i);
+  assert.equal(tools.record.parameters.safeParse({ observation, currentSource: { threadId: 'fake', messageId: 'fake' } }).success, false);
+  const journal = (await memory.view(owner)).mutations!;
+  const changeId = journal[journal.length - 1].changeId;
+  const undoSource = { ...current, messageId: '5', sentAt: '2026-09-14T13:00:00+08:00', text: 'Undo that completion.' };
+  const undoTools = createMemoryTools(memory, async () => ({ owner, sources: [undoSource], currentSource: { threadId: undoSource.threadId, messageId: undoSource.messageId } }));
+  const undone = mutationResult.parse(await undoTools.record.handler({ observation: { kind: 'undo', changeId, evidence: [{ threadId: undoSource.threadId, messageId: undoSource.messageId, quote: undoSource.text }] } }, context));
+  assert.equal(undone.item.status, 'open');
+  const correction = { ...current, messageId: '6', sentAt: '2026-09-14T14:00:00+08:00', text: 'Change the proposal deadline to September 18.' };
+  const correctionTools = createMemoryTools(memory, async () => ({ owner, sources: [correction], currentSource: { threadId: correction.threadId, messageId: correction.messageId } }));
+  const corrected = mutationResult.parse(await correctionTools.record.handler({ observation: { kind: 'correct', taskId: task.item.id,
+    deadline: { kind: 'date', date: '2026-09-18', timezone: 'Asia/Singapore' },
+    evidence: [{ threadId: correction.threadId, messageId: correction.messageId, quote: correction.text }] } }, context));
+  assert.deepEqual(corrected.item.deadline, { kind: 'date', date: '2026-09-18', timezone: 'Asia/Singapore' });
+  assert.equal(corrected.item.id, task.item.id);
+});
 
 test('CopilotKit tool handlers persist a complete commitment/blocker/resolution interaction', async () => {
   const path = join(await mkdtemp(join(tmpdir(), 'intern-tools-')), 'state.json');

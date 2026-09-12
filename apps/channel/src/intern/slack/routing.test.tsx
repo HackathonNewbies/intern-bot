@@ -48,3 +48,26 @@ test('unconfigured schedule remains disabled and a failed selected read is not p
   assert.equal((await f.service.profiles.get(owner)).threads.length, 0);
   assert.match(f.sent.at(-1)!, /connection/i);
 });
+test('integrated private tools route completion and undo with current owner evidence and preserve calendar', async () => {
+  const f = await fixture();
+  const ref = { channelId: 'C1', threadTs: '1726000000.000001', workspaceHost: 'acme.slack.com' };
+  const source = { threadId: 'C1:1726000000.000001', messageId: '1726000000.000001', authorId: 'U1', text: 'I will send the proposal', sentAt: '2024-09-10T20:26:40Z', url: 'https://acme.slack.com/archives/C1/p1726000000000001' };
+  f.service.access.readThread = async () => [source];
+  await f.service.profiles.select(owner, ref);
+  const created = await f.service.memory.apply(owner, { kind: 'commitment', title: 'Send the proposal', deadline: { kind: 'unknown' }, evidence: [{ threadId: source.threadId, messageId: source.messageId, quote: source.text }] }, [source]);
+  const request = message('I sent the proposal; mark Send the proposal done.');
+  await f.controller.message(f.thread, request);
+  type Tool = { name: string; handler(args: unknown, ctx: unknown): Promise<unknown> };
+  const tools = (f.runs.at(-1) as { tools: Tool[] }).tools;
+  assert.ok(tools.some(tool => tool.name === 'propose_calendar_invite'));
+  const ctx = { thread: f.thread, message: request, user: request.user, actor: request.actor, platform: 'slack' };
+  await tools.find(tool => tool.name === 'record_personal_memory')!.handler({ observation: { kind: 'complete', taskId: created.item.id, evidence: [{ threadId: 'dm:D1', messageId: 'message1', quote: request.text }] } }, ctx);
+  assert.equal((await f.service.memory.view(owner)).commitments[0].status, 'completed');
+  const undo = message('Undo that completion.');
+  undo.operation.logicalMessageId = 'message2';
+  await f.controller.message(f.thread, undo);
+  const next = (f.runs.at(-1) as { tools: Tool[] }).tools;
+  const changeId = (await f.service.memory.view(owner)).mutations![0].changeId;
+  await next.find(tool => tool.name === 'record_personal_memory')!.handler({ observation: { kind: 'undo', changeId, evidence: [{ threadId: 'dm:D1', messageId: 'message2', quote: undo.text }] } }, { ...ctx, message: undo });
+  assert.equal((await f.service.memory.view(owner)).commitments[0].status, 'open');
+});

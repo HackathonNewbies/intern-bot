@@ -16,7 +16,7 @@ export function visibleMemory(view: MemoryView, sources: SourceMessage[]): Memor
   const blockers = view.blockers.filter(item => visible(item) && (!item.taskId || taskIds.has(item.taskId)));
   const questions = view.questions.filter(visible);
   const ids = new Set([...commitments, ...blockers, ...questions].map(item => item.id));
-  return { commitments, blockers, questions, changes: view.changes.filter(change => ids.has(change.itemId)) };
+  return { commitments, blockers, questions, changes: view.changes.filter(change => ids.has(change.itemId)), mutations: view.mutations?.filter(change => ids.has(change.itemId)) };
 }
 export async function authorizeMutationResult(memory: PersonalMemory, owner: Owner, sources: SourceMessage[], result: { item: MemoryItem; changed: boolean }) {
   const view = visibleMemory(await memory.view(owner), sources);
@@ -28,6 +28,7 @@ export function createIngestionTools(memory: PersonalMemory, owner: Owner, sourc
   const read = { name: 'read_personal_memory', description: 'Read current authorized work and selected-thread evidence before every update.', parameters: z.object({}), async execute(_args: unknown) { return { memory: visibleMemory(await memory.view(owner), sources), sources }; } };
   const record = { name: 'record_personal_memory', description: 'Record one evidence-backed observation. Reuse existing task and blocker IDs. Only use the selected sources.', parameters: z.object({ observation: ObservationSchema }), async execute(args: unknown) {
     const { observation } = z.object({ observation: ObservationSchema }).parse(args);
+    if (['complete', 'correct', 'undo'].includes(observation.kind)) throw new Error('Background refresh cannot complete, correct or undo personal work.');
     const target = 'taskId' in observation ? observation.taskId : 'blockerId' in observation ? observation.blockerId : undefined;
     const view = visibleMemory(await memory.view(owner), sources);
     if (target && ![...view.commitments, ...view.blockers].some(item => item.id === target)) throw new Error('Observation target is not currently authorized.');
