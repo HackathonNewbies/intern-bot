@@ -60,6 +60,8 @@ test('integrated private tools route completion and undo with current owner evid
   type Tool = { name: string; handler(args: unknown, ctx: unknown): Promise<unknown> };
   const tools = (f.runs.at(-1) as { tools: Tool[] }).tools;
   assert.ok(tools.some(tool => tool.name === 'propose_calendar_invite'));
+  const context = (f.runs.at(-1) as { context: { value: string }[] }).context.map(entry => entry.value).join('\n');
+  assert.doesNotMatch(context, /no calendar.*tools/i, 'The integrated model must not be told its registered calendar tool is unavailable');
   const ctx = { thread: f.thread, message: request, user: request.user, actor: request.actor, platform: 'slack' };
   await tools.find(tool => tool.name === 'record_personal_memory')!.handler({ observation: { kind: 'complete', taskId: created.item.id, evidence: [{ threadId: 'dm:D1', messageId: 'message1', quote: request.text }] } }, ctx);
   assert.equal((await f.service.memory.view(owner)).commitments[0].status, 'completed');

@@ -57,4 +57,4 @@ Correct an existing task's title/deadline only when explicitly requested; preser
 For undo, read mutations and select the latest non-undone completion/correction changeId. Ask if the target is ambiguous.
 Undo does not remove tasks, undo blocker resolutions, or retract already delivered notices. Cite the CURRENT owner's request for complete/correct/undo, not an older message.
 These explicit actions require currentSource from the trusted transport; never invent it. If unavailable, explain that the integration cannot authorize the change.
-This slice has no calendar, email, or colleague-follow-up tools. Do not claim those actions occurred.`;
+Memory tools only record work; they do not create calendar events, send email, or contact colleagues. Use a separate tool only when it is provided in this run, follow its approval requirements, and report an external action only after that tool confirms success. A pending calendar proposal is not a created event.`;
