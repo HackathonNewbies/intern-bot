@@ -8,16 +8,34 @@ export const TestPairingSchema = identity.extend({
   userId: z.string().regex(/^U[A-Z0-9]+$/), conversationId: z.string().min(1),
 });
 
+// Keep the original single-user file valid. A configured list is an allowlist;
+// never fall back to provider identity when a user is absent from it.
+export const TestPairingsSchema = z.union([TestPairingSchema, z.array(TestPairingSchema)])
+  .transform(value => Array.isArray(value) ? value : [value])
+  .superRefine((pins, ctx) => {
+    const conversations = new Set<string>();
+    const destinations = new Map<string, string>();
+    for (const pin of pins) {
+      const destination = JSON.stringify([pin.workspaceId, pin.channelId]);
+      if (conversations.has(pin.conversationId)
+        || (destinations.has(destination) && destinations.get(destination) !== pin.userId)) {
+        ctx.addIssue({ code: 'custom', message: 'Pairings must have unique conversations and one owner per DM' });
+      }
+      conversations.add(pin.conversationId);
+      destinations.set(destination, pin.userId);
+    }
+  });
+
 /** Only ingress-provided facts are used; message text never authorizes a DM. */
 export function identifyMemoryTestUser(ctx: ChannelIdentityContext, pairing?: unknown) {
   if (ctx.provider !== 'slack' || ctx.actor.kind !== 'human' || !ctx.actor.id) return null;
   const raw = object(ctx.raw);
   const event = object(raw.event ?? raw);
   if (pairing !== undefined) {
-    const result = TestPairingSchema.safeParse(pairing);
+    const result = TestPairingsSchema.safeParse(pairing);
     if (!result.success) return null;
-    const pin = result.data;
-    if (ctx.actor.id !== pin.userId || ctx.conversation.id !== pin.conversationId
+    const pin = result.data.find(entry => entry.userId === ctx.actor.id && entry.conversationId === ctx.conversation.id);
+    if (!pin
       || (ctx.tenant.id !== 'unknown' && ctx.tenant.id !== pin.workspaceId)
       || (event.channel !== undefined && event.channel !== pin.channelId)
       || (event.channel_type !== undefined && event.channel_type !== 'im')) return null;

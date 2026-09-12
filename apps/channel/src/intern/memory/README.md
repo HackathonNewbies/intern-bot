@@ -29,7 +29,31 @@ For our `intern-memory-test` app, `.env.memory-test` holds its project key and c
 node --env-file=.env --import tsx --input-type=module -e 'import {readFileSync} from "node:fs";import {parseEnv} from "node:util";Object.assign(process.env,parseEnv(readFileSync(".env.memory-test","utf8")));if(process.env.CHANNEL_CODE!=="intern-memory-test")throw new Error("Wrong test channel");await import("./apps/channel/src/intern/memory/slack-test.ts")'
 ```
 
-The live managed gateway omitted workspace/DM metadata. The local-only workaround pins one verified Slack user and opaque conversation to its workspace and DM in ignored `.data/memory-test-pairing.json`. The pin applies only to `intern-memory-test`; all other users/conversations are rejected while paired. Use the same message surface as the successful pairing message: **our current pairing is the main DM composer (bottom-left), not nested reply threads on the right**. A probe only creates a candidate, never grants access: an operator must verify the actual Slack DM and user before approving its mapping locally. Do not commit pairing, credential, or memory files. This is not production DM authorization.
+The live managed gateway omitted workspace/DM metadata. The local-only workaround pins verified Slack users and opaque conversations to their workspaces and DMs in ignored `.data/memory-test-pairing.json`. The file accepts an array of pairings; the original single-object format remains supported. The allowlist applies only to `intern-memory-test`; all unlisted users/conversations are rejected while configured. Use the same message surface as the successful pairing message: **our current pairing is the main DM composer (bottom-left), not nested reply threads on the right**. A probe only creates a candidate, never grants access: an operator must verify the actual Slack DM and user before approving its mapping locally. Do not commit pairing, credential, or memory files. This is not production DM authorization.
+
+### Multiple teammates on one test bot
+
+Run **one** instance of the launcher above on one person's computer. Everyone messages that same bot in their own one-to-one DM. Keep that computer running; teammates do not start another backend with the same `CHANNEL_CODE`. Memory uses workspace ID plus user ID, and concurrent writes serialize in this single process. Each person sees only their own saved work.
+
+To enroll a teammate when gateway identity metadata is missing:
+
+1. Set `MEMORY_PAIRING_PROBE` to a chosen discovery phrase in `.env.memory-test`, then restart the single backend with the command above.
+2. Have the teammate send that exact phrase in the bot's main DM composer. The runtime saves their actor and conversation IDs to `.data/memory-test-candidates/<hash>.json`. Existing pairings keep working; retries do not overwrite another candidate. A candidate does not authorize access.
+3. The operator verifies the sender and one-to-one DM in Slack, including the workspace `T…`, user `U…`, and DM `D…` IDs. Keep the opaque `conversationId` from that person's candidate. Never infer these mappings from the phrase alone or approve a shared/group conversation.
+4. Change `.data/memory-test-pairing.json` to an array, preserving the existing entry and appending the verified teammate. For example, with fictional IDs:
+
+   ```json
+   [
+     { "channelCode": "intern-memory-test", "workspaceId": "T123", "userId": "U123", "channelId": "D123", "conversationId": "verified-conversation-one" },
+     { "channelCode": "intern-memory-test", "workspaceId": "T123", "userId": "U456", "channelId": "D456", "conversationId": "verified-conversation-two" }
+   ]
+   ```
+
+5. Restart the backend to load the updated list. Remove `MEMORY_PAIRING_PROBE` when enrollment is finished. Removing a pairing and restarting revokes access without deleting that person's memory. An empty array denies everyone; deleting the file reverts to provider-verified DM identity only.
+
+Duplicate conversation mappings, conflicting DM owners, and malformed entries fail closed. This remains a local team-test setup: A still owns production identity, selected-thread permissions, and integration into the main `channel.tsx` runtime.
+
+For the live two-person check, each person records a differently named task, asks what is outstanding, then completes their own task. Confirm neither sees or changes the other's work, including after a backend restart. Automated tests cover identity mismatch rejection, simultaneous candidate capture, and concurrent memory isolation across users/workspaces; they do not replace this live check.
 
 After recording a task, try these in the paired conversation, waiting for each reply:
 

@@ -36,3 +36,32 @@ test('managed raw Slack event supplies DM identity when conversation ID is opaqu
   const user = identifyMemoryTestUser({ ...base, conversation: { id: 'opaque' }, raw: { event: { channel: 'D456', channel_type: 'im' } } });
   assert.equal(parseMemoryTestUser(user!.id).channelId, 'D456');
 });
+
+const secondPairing = { ...pairing, userId: 'U456', channelId: 'D456', conversationId: 'managed-thread-456' };
+test('multiple approved users authenticate only in their own paired conversations', () => {
+  const pairings = [pairing, secondPairing];
+  const firstUser = identifyMemoryTestUser(managed, pairings);
+  assert.ok(firstUser, 'First approved user should authenticate from a pairing list');
+  assert.equal(parseMemoryTestUser(firstUser.id).userId, 'U123');
+  const second = { ...managed, actor: { id: 'U456', kind: 'human' as const }, conversation: { id: 'managed-thread-456' } };
+  assert.deepEqual(parseMemoryTestUser(identifyMemoryTestUser(second, pairings)!.id), {
+    workspaceId: 'T123', userId: 'U456', channelId: 'D456',
+  });
+  for (const ctx of [
+    { ...managed, actor: second.actor },
+    { ...second, actor: managed.actor },
+    { ...second, tenant: { id: 'T999' } },
+    { ...second, raw: { event: { channel: 'D123', channel_type: 'im' } } },
+    { ...second, raw: { event: { channel: 'D456', channel_type: 'mpim' } } },
+    base,
+  ]) assert.equal(identifyMemoryTestUser(ctx, pairings), null);
+});
+
+test('invalid or conflicting pairing lists fail closed', () => {
+  for (const pairings of [
+    [], [pairing, { ...secondPairing, channelId: 'C456' }],
+    [pairing, pairing],
+    [pairing, { ...secondPairing, conversationId: pairing.conversationId }],
+    [pairing, { ...secondPairing, channelId: pairing.channelId }],
+  ]) assert.equal(identifyMemoryTestUser(managed, pairings), null);
+});

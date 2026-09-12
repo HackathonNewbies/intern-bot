@@ -2,7 +2,7 @@
  * another listener using the same CHANNEL_CODE. Does not change channel.tsx. */
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createChannel } from '@copilotkit/channels';
 import { CopilotKitIntelligence, CopilotRuntime } from '@copilotkit/runtime/v2';
 import { createCopilotNodeListener } from '@copilotkit/runtime/v2/node';
@@ -12,13 +12,14 @@ import { required } from '../../env';
 import { PersonalMemory } from './store';
 import { MessageSchema, type SourceMessage } from './model';
 import { createMemoryTools, PERSONAL_MEMORY_INSTRUCTIONS } from './tools';
-import { identifyMemoryTestUser, parseMemoryTestUser, TestPairingSchema } from './slack-test-scope';
+import { identifyMemoryTestUser, parseMemoryTestUser, TestPairingsSchema } from './slack-test-scope';
+import { savePairingCandidate } from './pairing-candidates';
 
 const memory = new PersonalMemory(resolve('.data/memory-slack-test.json'));
 const channelCode = required('CHANNEL_CODE');
 const pairingPath = '.data/memory-test-pairing.json';
 const pairing = channelCode === 'intern-memory-test' && existsSync(pairingPath)
-  ? TestPairingSchema.parse(JSON.parse(readFileSync(pairingPath, 'utf8'))) : undefined;
+  ? TestPairingsSchema.parse(JSON.parse(readFileSync(pairingPath, 'utf8'))) : undefined;
 const channel = createChannel({
   name: channelCode, identifyUser: ctx => identifyMemoryTestUser(ctx, pairing),
   agent: threadId => new ChannelRunAgent(id => makeAgent(id, {
@@ -31,15 +32,14 @@ const respond: Parameters<typeof channel.onMessage>[0] = async ({ thread, messag
   if (message.actor.kind !== 'human') return;
   // Capture only a candidate. A local operator must verify its Slack DM and
   // explicitly create the pairing file; a chat message never grants access.
-  if (channelCode === 'intern-memory-test' && !pairing && message.platform === 'slack'
+  if (channelCode === 'intern-memory-test' && !message.user && message.platform === 'slack'
     && process.env.MEMORY_PAIRING_PROBE && message.text === process.env.MEMORY_PAIRING_PROBE) {
-    mkdirSync('.data', { recursive: true });
-    writeFileSync('.data/memory-test-candidate.json', JSON.stringify({ userId: message.actor.id, conversationId: thread.conversationKey }), { mode: 0o600, flag: 'wx' });
+    await savePairingCandidate('.data/memory-test-candidates', { userId: message.actor.id, conversationId: thread.conversationKey });
     await thread.post('Test thread detected. Waiting for local approval; personal memory is still locked.');
     return;
   }
   if (!message.user) {
-    await thread.post(pairing ? 'This test is limited to the paired user and conversation. Use the same message surface where you sent the successful pairing message; nested reply threads may have different IDs.' : 'Cannot verify private DM identity from the provider metadata. Personal memory is locked until a local operator verifies and pairs this test conversation.');
+    await thread.post(pairing ? 'This test is limited to approved users in their paired DMs. Ask the runtime operator to pair your DM, then use that same message surface; nested replies may have different IDs.' : 'Cannot verify private DM identity from the provider metadata. Personal memory is locked until a local operator verifies and pairs this test conversation.');
     return;
   }
   const identity = parseMemoryTestUser(message.user.id);

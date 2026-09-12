@@ -150,3 +150,21 @@ test('corrupt stored data is reported rather than silently overwritten', async (
   await assert.rejects(memory.apply(owner, commitment, messages));
   assert.equal(await readFile(path, 'utf8'), '{broken');
 });
+
+test('concurrent users and workspaces retain separate tasks and notices after restart', async () => {
+  const { path, memory } = await setup();
+  const owners = [owner, other, { ...owner, workspaceId: 'second-workspace' }];
+  await Promise.all(owners.map((person, index) => {
+    const source = { ...messages[0], authorId: person.userId, text: `I will finish personal task ${index}.` };
+    return memory.apply(person, { kind: 'commitment', title: `Personal task ${index}`,
+      deadline: { kind: 'unknown' }, evidence: [{ threadId: source.threadId, messageId: source.messageId, quote: source.text }] }, [source]);
+  }));
+  const restarted = new PersonalMemory(path);
+  const views = await Promise.all(owners.map(person => restarted.view(person)));
+  assert.deepEqual(views.map(view => view.commitments.map(item => item.title)), [
+    ['Personal task 0'], ['Personal task 1'], ['Personal task 2'],
+  ]);
+  assert.equal(new Set(views.flatMap(view => view.commitments.map(item => item.id))).size, 3);
+  await restarted.acknowledge(owner, views.flatMap(view => view.changes.map(change => change.id)));
+  assert.deepEqual(await Promise.all(owners.map(async person => (await restarted.view(person)).changes.length)), [0, 1, 1]);
+});
