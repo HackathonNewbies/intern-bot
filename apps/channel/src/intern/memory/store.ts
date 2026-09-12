@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
+import { assertTaskSelection, assertUniqueTaskTitle } from './task-matching';
 import { ChangeSchema, CurrentSourceSchema, ItemSchema, MemoryMutationSchema, MessageSchema, MutationFieldsSchema, ObservationSchema, OwnerSchema,
   type CurrentSource, type MemoryItem, type MemoryView, type Observation, type Owner, type SourceMessage } from './model';
 
@@ -117,6 +118,12 @@ export class PersonalMemory {
         const taskId = observation.kind === 'undo' ? mutation!.itemId : observation.taskId;
         const task = person.items.find(entry => entry.id === taskId && entry.kind === 'commitment');
         if (!task) throw new Error('Commitment not found');
+        const tasks = person.items.filter(entry => entry.kind === 'commitment');
+        if (observation.kind !== 'undo') {
+          const currentMessage = evidence.find(source => source.threadId === current!.threadId && source.messageId === current!.messageId)!;
+          assertTaskSelection(tasks, task.id, currentMessage.text);
+          if (observation.kind === 'correct' && observation.title !== undefined) assertUniqueTaskTitle(tasks, observation.title, task.id);
+        }
         const before = MutationFieldsSchema.parse(task);
         const changeId = randomUUID();
         if (observation.kind === 'undo') {
@@ -127,6 +134,7 @@ export class PersonalMemory {
           const last = person.mutations?.filter(entry => !entry.undoneBy).at(-1);
           if (last?.changeId !== mutation!.changeId) throw new Error('Only the latest explicit change can be undone');
           if (digest(before) !== digest(mutation!.after)) throw new Error('Cannot undo a stale change');
+          assertUniqueTaskTitle(tasks, mutation!.before.title, task.id);
           task.status = mutation!.before.status;
           task.title = mutation!.before.title;
           if (mutation!.before.deadline === undefined) delete task.deadline;
@@ -159,6 +167,7 @@ export class PersonalMemory {
         blocker.resolutionEvidence = evidence;
         item = blocker;
       } else {
+        if (observation.kind === 'commitment') assertUniqueTaskTitle(person.items.filter(entry => entry.kind === 'commitment'), observation.title);
         if (observation.kind === 'blocker') {
           const task = person.items.find(item => item.id === observation.taskId && item.kind === 'commitment');
           if (!task) throw new Error('Commitment not found');
