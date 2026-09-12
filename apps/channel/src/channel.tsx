@@ -5,12 +5,14 @@ import { required } from "./env";
 import { GreetingCard, IncidentCard, Timeline, welcomeMessage } from "./components";
 import { proposeAction, readThread, searchTheWeb } from "./tools";
 import { proposeCalendarInvite } from "./intern/calendar/tool";
+import { proposeAvailableCalendarInvite } from "./intern/calendar/available-tool";
 
 // Tools are registered only when their credential is present, so the agent is
 // never handed a tool that will fail when it calls it.
 const tools = [
   readThread,
   proposeCalendarInvite,
+  proposeAvailableCalendarInvite,
   proposeAction,
   ...(isSearchConfigured() ? [searchTheWeb] : []),
 ];

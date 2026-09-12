@@ -10,6 +10,7 @@ export const oauthClientFile = () => resolve(projectRoot, process.env.GOOGLE_OAU
 export const scopes = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+  "https://www.googleapis.com/auth/calendar.events.freebusy",
 ];
 
 export class CalendarError extends Error {}

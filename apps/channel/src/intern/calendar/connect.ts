@@ -50,7 +50,7 @@ async function connect() {
       });
       if (!response.ok) throw new CalendarError(`Google token exchange failed (HTTP ${response.status}).`);
       const tokens = z.object({ refresh_token: z.string().min(1), scope: z.string() }).parse(await response.json());
-      if (!scopes.every(scope => tokens.scope.split(" ").includes(scope))) throw new CalendarError("Both requested Calendar permissions are needed. Run the connection command again and grant them.");
+      if (!scopes.every(scope => tokens.scope.split(" ").includes(scope))) throw new CalendarError("All requested Calendar permissions are needed, including free/busy access. Run the connection command again and grant them.");
       const path = calendarTokenFile();
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
       const temporary = `${path}.${randomBytes(8).toString("hex")}.tmp`;

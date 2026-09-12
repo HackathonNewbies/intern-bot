@@ -19,7 +19,7 @@ replaces the card. Cancel creates nothing. Other Slack users cannot approve it.
    commit it or paste credentials into Slack or chat.
 4. From the repository root, run `npm run calendar:connect`. Open its URL on the
    same computer, choose the calendar's owner/editor account, and authorize the
-   Calendar event and calendar-list permissions. Tokens are stored locally in
+   Calendar event, calendar-list, and free/busy permissions. Tokens are stored locally in
    `.data/google-calendar-token.json` with file mode `0600`.
 5. The command lists writable secondary calendars. Copy the chosen ID into
    `GOOGLE_CALENDAR_ID` in root `.env`. You can list again with
@@ -52,7 +52,42 @@ ID, including after an uncertain network failure; successful creation is read
 back before it is reported. If a creation attempt fails, retry **the same card**.
 If the process restarted after an uncertain write, check Google Calendar before
 making a new request. This implementation does not add recurrence, Google Meet,
-free/busy checks, event cancellation, or per-user Google account connections.
+event cancellation, or per-user Google account connections.
+
+## Schedule when a guest is free
+
+> @intern-bot create a calendar invite titled Discussion for today, at a time
+> when agarwalrahul1008@gmail.com is free, and invite him to the meeting.
+
+`propose_available_calendar_invite` checks Google Free/Busy for each explicit
+guest email (their primary calendar) and the configured shared calendar. It
+proposes the earliest common free slot. Defaults shown on the review are 30
+minutes within 09:00–18:00 Asia/Singapore, with quarter-hour starts at least five
+minutes from now. Specify a duration, timezone, or search window to override
+these defaults. An exhausted day is never silently moved forward.
+
+Existing installations must rerun `npm run calendar:connect` once to grant
+`calendar.events.freebusy`. This reads availability on calendars the connected
+account can access. Other guests must share free/busy access with that account;
+knowing an email address does not grant access. Missing/denied/incomplete results
+stop the proposal; they never mean the person is free. Busy intervals stay inside
+the lookup; private event details are not requested or posted to Slack.
+
+The requester still approves the exact proposed time. Availability is rechecked
+before the first creation attempt. A new conflict stops the write and allows
+cancellation. After an uncertain write, retries recover the same event ID without
+mistaking that event for a new conflict. This is a snapshot, not a reservation;
+Google offers no atomic free/busy-and-create operation here. Additional personal
+calendars and calendars not accessible to the connected account are not checked.
+
+Verified September 12, 2026: after granting the free/busy scope, the live Slack
+request for “Discussion” today selected 16:00–16:30 Asia/Singapore and delivered
+the native approval card. Google availability lookup and Slack proposal delivery
+were verified; creation for this availability-based test was left for the
+requester to approve. Offline checks passed 112 tests, including conflict
+rechecks, denied access, DST, no available slot, and uncertain-write recovery.
+Keep only one runtime using the `intern-bot` Channel running across the team;
+competing runtimes caused one live test request to miss this implementation.
 
 Any human who can talk to the bot can request a reviewed event on the team
 calendar. Restrict bot membership to trusted team channels for this demo.

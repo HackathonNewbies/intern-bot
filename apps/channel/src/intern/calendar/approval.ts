@@ -13,6 +13,7 @@ export class CalendarApproval {
     readonly invite: Invite,
     private readonly create: (invite: Invite, id: string) => Promise<CreatedEvent>,
     private readonly expiresAt = Date.now() + 20 * 60_000,
+    private readonly beforeCreate?: (invite: Invite) => Promise<void>,
   ) {}
 
   decide(requester: string, approve: boolean, now = Date.now()) {
@@ -26,6 +27,9 @@ export class CalendarApproval {
         this.state = "cancelled";
         return { state: this.state } as const;
       }
+      // Recheck before the first write. A retry after an uncertain insert must
+      // recover the same ID, even if that event now appears in free/busy.
+      if (!this.attempted) await this.beforeCreate?.(this.invite);
       this.attempted = true;
       this.result = await this.create(this.invite, this.eventId);
       this.state = "created";

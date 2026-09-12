@@ -1,6 +1,9 @@
 # Slack thread agent
 
 Shared Google Calendar invitations are available through `propose_calendar_invite`.
+Requests to schedule when guests are free use `propose_available_calendar_invite`
+to check availability before showing the same approval card. Reconnect Google
+once to grant free/busy access; see the setup guide for defaults and access limits.
 See [Google Calendar setup](../../dev-docs/google-calendar.md) to connect the team
 calendar, authorize Google, and test a reviewed invitation from Slack.
 

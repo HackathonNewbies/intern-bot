@@ -3,7 +3,15 @@ import type { InteractionContext } from "@copilotkit/channels";
 import { CalendarApproval } from "./approval";
 import { CalendarError, calendarId, createCalendarInvite, getCalendarInfo, googleAccessToken, inviteSchema, isCalendarConfigured, validateInvite } from "./google";
 
-export function calendarInviteTool(deps = {
+export type CalendarToolDependencies = {
+  configured: typeof isCalendarConfigured;
+  target: () => ReturnType<typeof getCalendarInfo>;
+  create: typeof createCalendarInvite;
+  beforeCreate?: (invite: Parameters<typeof createCalendarInvite>[0]) => Promise<void>;
+  reviewNote?: string;
+};
+
+export function calendarInviteTool(deps: CalendarToolDependencies = {
   configured: isCalendarConfigured,
   target: async () => {
     const id = calendarId();
@@ -25,7 +33,7 @@ return defineChannelTool({
       console.info("[calendar] verified calendar access");
       const id = target.id;
       const requester = `${ctx.platform}:${ctx.actor.id}`;
-      const approval = new CalendarApproval(requester, invite, (details, eventId) => deps.create(details, eventId, { id }));
+      const approval = new CalendarApproval(requester, invite, (details, eventId) => deps.create(details, eventId, { id }), undefined, deps.beforeCreate);
       const decide = async (approved: boolean, click: InteractionContext<string>) => {
         try {
           const result = await approval.decide(`${click.platform}:${click.actor.id}`, approved);
@@ -59,6 +67,7 @@ return defineChannelTool({
           </Fields>
           {invite.location ? <Section>{`Location: ${invite.location}`}</Section> : null}
           {invite.description ? <Section>{invite.description}</Section> : null}
+          {deps.reviewNote ? <Context>{deps.reviewNote}</Context> : null}
           <Context>Creating this event sends invitations to every listed guest. Only the requester can approve. This review expires in 20 minutes or when the bot restarts.</Context>
           <Actions>
             <Button value={`${approval.eventId}:create`} style="primary" onClick={async click => { await decide(true, click); }}>Create &amp; send invites</Button>
