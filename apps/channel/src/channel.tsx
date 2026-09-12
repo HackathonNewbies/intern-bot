@@ -4,6 +4,8 @@ import { makeChannelAgent } from "./agent";
 import { required } from "./env";
 import { IncidentCard, Timeline, welcomeMessage } from "./components";
 import { proposeAction, readThread, searchTheWeb } from "./tools";
+import { fixtureBriefing } from "./intern/fixtures";
+import { onboardingMessage, personalBriefing } from "./intern/briefing";
 
 // Tools are registered only when their credential is present, so the agent is
 // never handed a tool that will fail when it calls it.
@@ -65,4 +67,18 @@ channel.onMessage(async ({ thread }) => {
 
 channel.onWelcome(async ({ thread, platform }) => {
   await thread.post(welcomeMessage(platform));
+});
+
+// The assistant pane is a person's private conversation. The fixture slice
+// deliberately posts only there; it does not summarise selected work in a team
+// channel or infer access to unselected threads.
+channel.onThreadStarted(async ({ thread }) => {
+  await thread.setTitle("My work briefing");
+  await thread.post(onboardingMessage());
+});
+
+// Slash-command arguments are intentionally ignored: this always uses the
+// local fixture until the work-memory module supplies a per-user briefing.
+channel.onCommand("briefing", async ({ thread }) => {
+  await thread.post(personalBriefing(fixtureBriefing));
 });
