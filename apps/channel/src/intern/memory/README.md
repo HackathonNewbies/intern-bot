@@ -106,6 +106,10 @@ Tests use fictional source messages and real disk persistence/tool handlers. A s
 
 ## Deliberate limits of this slice
 
+Task matching safeguards: with multiple tasks, completion/correction must identify the target in the current message by exact ID, uniquely matching full title, or a distinguishing title word. Vague or conflicting selection is rejected before writing; the bot should show task choices and ask for a fresh, specific request. This conservative lexical check is not a semantic intent classifier and may ask for an ID even when a human would understand the reference.
+
+New commitments, renames and undo cannot collide with another owned task's normalized title (case, whitespace, punctuation and Unicode compatibility normalized). A collision asks for clarification rather than merging dates or creating another record. Completed tasks also count: recurring/separate work needs a genuinely distinct name supplied by the user. Same-source retries still deduplicate. Paraphrased titles and semantic duplicates are **not** fully detected, and existing duplicate records are not automatically merged. These guards have offline regression coverage; the earlier live lifecycle demo predates them.
+
 - Local JSON with atomic replacement and file sync; one process only. Calls to the same absolute path serialize within that process. Use one canonical path, not symlink aliases. No multi-process database guarantees or encrypted storage.
 - Model interprets intent and semantic relationships; code verifies schema, source identity, quote presence, task ownership, and evidence chronology. A valid quote is not proof that the model understood it correctly. Ambiguous interpretation should be recorded as a clarification; live labeled evaluation is still required.
 - One observation of a given kind per evidence set/target. Multiple commitments within one message, alternative evidence subsets, source edits/retractions, and semantic duplicate merging need the next ingestion iteration.

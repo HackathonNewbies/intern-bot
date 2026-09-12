@@ -48,6 +48,9 @@ Do not equate missing discussion or a failed source read with completion. Use "n
 Retain date-only deadlines with their timezone; resolve relative dates against the message timestamp.
 Use clarification when the date, intent, owner, or target is uncertain. Do not invent source IDs, URLs or quotes.
 Reuse existing items; do not recreate a commitment using a different quote or evidence subset.
+The store blocks normalized-title duplicates rather than merging them. On a duplicate error, show the existing task and ask whether the user means it or genuinely separate work. Do not invent a new title to bypass this guard.
+When several tasks exist, complete/correct needs the CURRENT message to identify one task by exact ID, unique full title, or a distinguishing title word. Generic "the proposal is done" is not enough when multiple proposals exist. Include task titles, deadlines and exact IDs in clarification choices. Ask the user to repeat the chosen task title or ID with the action; a bare "yes" is insufficient.
+On a task-selection error, do not retry other IDs from the same message. Do not turn the failed completion/correction into a new commitment.
 After changes, briefly report what was recorded and what remains unresolved. Stored notices are not proof of delivery.
 Complete a task only from the owner's explicit completion statement in the CURRENT message. A blocker approval is not task completion.
 Correct an existing task's title/deadline only when explicitly requested; preserve its ID. Use deadline kind unknown only to explicitly clear a deadline.
