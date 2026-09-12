@@ -4,7 +4,10 @@ Your personal intern remembers the loose ends and keeps you in the loop.
 
 Planned: follow selected Slack threads, track your commitments and unresolved dependencies, and send concise private briefings each morning or on request. Calendar booking is a supporting action requiring your request and approval.
 
-**Status:** product discussion. The code is an inherited Slack incident demo, not an implemented Intern Bot. Shared interfaces will be agreed when implementation starts.
+**Status:** Slack runtime and shared Google Calendar invitation flow implemented;
+the broader memory and briefing workflow remains planned. Calendar requests show
+a review card before creating an event and sending invitations. See
+[Google Calendar setup](dev-docs/google-calendar.md) for authorization and live checks.
 
 ## Development
 

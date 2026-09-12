@@ -10,7 +10,7 @@ import { channel } from "./channel";
 import { required } from "./env";
 
 const intelligence = new CopilotKitIntelligence({
-  apiKey: required("INTELLIGENCE_API_KEY"),
+  apiKey: process.env.CPK_INTELLIGENCE_API_KEY || required("INTELLIGENCE_API_KEY"),
   // Hosted Intelligence supplies both defaults. Override both together only for
   // self-hosted — they are separate hosts, so never derive one from the other.
   apiUrl: process.env.INTELLIGENCE_API_URL,
@@ -47,7 +47,8 @@ await channels.ready({ timeoutMs: 30_000 });
 // this check and you get a process that boots cleanly, serves 200s, and answers
 // nothing.
 const status = channels.status();
-if (status.overall !== "online") {
+console.log(`Channel lifecycle: ${JSON.stringify(status)}`);
+if (status.overall !== "online" || status.channels[required("CHANNEL_CODE")] !== "online") {
   console.error(
     `\n  Channel is not online: ${JSON.stringify(status)}\n` +
       `  → 'setup_required' means the provider side is unfinished. Run: npm run channel:status\n` +

@@ -10,7 +10,8 @@ Keep an individual informed about their commitments, deadlines, dependencies, an
 - Proposed Singapore weekday defaults: 08:30 briefing; checks at 09:00, 13:00, 17:00.
 - Update from explicit completion/resolution messages; allow corrections, completion, and undo.
 - Keep the user informed; do not chase colleagues or plan their day automatically.
-- Calendar blocks only when requested and approved. Provider undecided.
+- Google Calendar invitations only when requested and approved. Start with one
+  shared destination calendar, connected through the operator's Google account.
 - No email, transcription, team assignment, Exa research, or Ambiguous integration in this scope.
 
 ## Three-person split
@@ -42,7 +43,9 @@ Include another person's unrelated task and undated backlog. Ambiguous links req
 ## Open decisions and constraints
 
 - Installed Channels types state proactive subscribed delivery is not wired. Verify a supported background access/delivery path before claiming morning DMs work.
-- Calendar provider/account remains undecided.
+- Calendar provider selected: Google Calendar. The HackathonNewbies secondary
+  calendar is the shared bot destination; calendar-wide access is owner-only for
+  now, with guests invited individually. Setup: `dev-docs/google-calendar.md`.
 - Track unresolved items connected to the user's commitments; standalone unanswered requests remain undecided.
 - Preserve the pinned Channels/runtime pair, shared client override, and inherited run adapter.
 - Offline tests and accelerated clock demos are not live integration evidence.

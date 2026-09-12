@@ -26,6 +26,23 @@ import {
 } from "@copilotkit/channels";
 import { z } from "zod";
 
+export const GreetingCard = defineChannelComponent({
+  name: "greeting_card",
+  description:
+    "Say hello to everyone in the current thread with an Intern Bot greeting card. Use when asked to introduce yourself or greet the team.",
+  parameters: z.object({
+    greeting: z.string().describe("A brief, friendly hello to everyone, introducing yourself as Intern Bot."),
+  }),
+  render({ greeting }) {
+    return (
+      <Message accent="#2E7D5B">
+        <Header>Hello from Intern Bot 👋</Header>
+        <Section>{greeting}</Section>
+      </Message>
+    );
+  },
+});
+
 /** Severity drives the colour rail, so the channel can triage by glance. */
 const SEVERITY = {
   sev1: { accent: "#C4145F", label: "SEV1 · customer-facing" },
