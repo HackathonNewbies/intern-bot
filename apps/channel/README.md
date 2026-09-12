@@ -1,5 +1,33 @@
 # Slack thread agent
 
+Shared Google Calendar invitations are available through `propose_calendar_invite`.
+See [Google Calendar setup](../../dev-docs/google-calendar.md) to connect the team
+calendar, authorize Google, and test a reviewed invitation from Slack.
+
+## Intern Bot setup
+
+This directory is linked to the hosted `intern-bot` project and managed Slack
+Channel declared in `.copilotkit/channels.json`. The test location is
+HackathonNewbies → `#new-channel`.
+
+Set `OPENAI_API_KEY` in root `.env`. `copilotkit project select` provisions
+`CPK_INTELLIGENCE_API_KEY`; the runtime accepts that name, with
+`INTELLIGENCE_API_KEY` as a legacy fallback. Keep `CHANNEL_CODE=intern-bot`.
+
+Run `npm run dev:slack` from the repository root. Keep only one listener for this
+Channel running, including listeners in other checkouts: competing runtimes can
+answer with stale behavior. A root `.env` change requires restarting the process.
+
+In Slack, invite with `/invite @intern-bot`, then send
+`@intern-bot say hello to everybody`. The model should render the greeting card.
+Reply in the same thread without mentioning the bot to test follow-up handling;
+an unrelated, unmentioned top-level message should receive no reply.
+
+CLI 4.9.60's source scanner recognizes literal Channel names only, so
+`channels status --json` can warn `channel_not_declared_in_source` for this
+template's environment-based name. Check the runtime's logged Channel lifecycle
+and a real Slack reply to establish connection.
+
 **OpenAI + CopilotKit Channels + Exa**
 
 Build an agent that reads an existing conversation, researches what matters, and replies in the same Slack thread with native cards and source links. Try a team research discussion, support handoff, project decision, or incident review. The included incident scenario shows how the infrastructure fits together; replace it with your own workflow.

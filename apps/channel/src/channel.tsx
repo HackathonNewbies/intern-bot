@@ -2,13 +2,15 @@ import { createChannel } from "@copilotkit/channels";
 import { isSearchConfigured, isWorkplaceConfigured, WORKPLACE_CONTEXT } from "agent-core";
 import { makeChannelAgent } from "./agent";
 import { required } from "./env";
-import { IncidentCard, Timeline, welcomeMessage } from "./components";
+import { GreetingCard, IncidentCard, Timeline, welcomeMessage } from "./components";
 import { proposeAction, readThread, searchTheWeb } from "./tools";
+import { proposeCalendarInvite } from "./intern/calendar/tool";
 
 // Tools are registered only when their credential is present, so the agent is
 // never handed a tool that will fail when it calls it.
 const tools = [
   readThread,
+  proposeCalendarInvite,
   proposeAction,
   ...(isSearchConfigured() ? [searchTheWeb] : []),
 ];
@@ -26,11 +28,15 @@ export const channel = createChannel({
 
   agent: makeChannelAgent,
   tools,
-  components: [IncidentCard, Timeline],
+  components: [GreetingCard, IncidentCard, Timeline],
 
   // Injected into the agent's prompt on every run.
   context: [
-
+    {
+      description: "Identity and greetings",
+      value:
+        "Your name is Intern Bot. When asked to say hello to everybody, call greeting_card with a brief friendly introduction in the current thread. A greeting needs no incident details or research. Do not use @channel or @everyone for a greeting.",
+    },
     {
       description: "Rendering",
       value:
@@ -50,16 +56,18 @@ export const channel = createChannel({
 
 // A mention subscribes the conversation, so the agent then follows along instead
 // of needing to be @-mentioned every single turn.
+const currentTimeContext = () => [{ description: "Current date and time", value: `${new Date().toISOString()}. Default scheduling timezone: Asia/Singapore.` }];
+
 channel.onMention(async ({ thread }) => {
   await thread.subscribe();
-  await thread.runAgent();
+  await thread.runAgent({ context: currentTimeContext() });
 });
 
 // Non-mentioned turns only ever reach onMessage — gate them on the flag or the
 // agent will answer every message in every channel it has been invited to.
 channel.onMessage(async ({ thread }) => {
   if (await thread.isSubscribed()) {
-    await thread.runAgent();
+    await thread.runAgent({ context: currentTimeContext() });
   }
 });
 

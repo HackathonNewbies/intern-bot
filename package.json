@@ -13,6 +13,8 @@
     "apps/channel"
   ],
   "scripts": {
+    "calendar:connect": "node --env-file=.env --import tsx apps/channel/src/intern/calendar/connect.ts",
+    "calendar:list": "npm run calendar:connect -- --list",
     "dev": "npm run dev:slack",
     "dev:slack": "npm run dev --workspace channel",
     "channel:status": "npx copilotkit@latest channels status --json",
