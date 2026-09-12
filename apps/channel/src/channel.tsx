@@ -7,6 +7,7 @@ import { proposeAction, readThread, searchTheWeb } from "./tools";
 
 // Tools are registered only when their credential is present, so the agent is
 // never handed a tool that will fail when it calls it.
+//Test commit
 const tools = [
   readThread,
   proposeAction,
