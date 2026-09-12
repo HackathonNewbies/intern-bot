@@ -17,7 +17,7 @@ MODEL_PROVIDER=openai
 OPENAI_API_KEY=your-key
 MODEL=gpt-5.6-sol
 CHANNEL_CODE=your-channel-code
-INTELLIGENCE_API_KEY=your-project-key
+CPK_INTELLIGENCE_API_KEY=your-project-key
 EXA_API_KEY=your-key
 EXA_SEARCH_TYPE=fast
 ```

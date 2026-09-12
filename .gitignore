@@ -1,6 +1,8 @@
 node_modules/
 .env
 .env.local
+.env.memory-test
+.env copy
 *.log
 dist/
 .DS_Store
