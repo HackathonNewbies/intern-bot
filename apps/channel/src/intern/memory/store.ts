@@ -2,12 +2,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
-import { ChangeSchema, ItemSchema, MessageSchema, ObservationSchema, OwnerSchema,
-  type MemoryItem, type MemoryView, type Observation, type Owner, type SourceMessage } from './model';
+import { ChangeSchema, CurrentSourceSchema, ItemSchema, MemoryMutationSchema, MessageSchema, MutationFieldsSchema, ObservationSchema, OwnerSchema,
+  type CurrentSource, type MemoryItem, type MemoryView, type Observation, type Owner, type SourceMessage } from './model';
 
 const StateSchema = z.object({ version: z.literal(1), people: z.array(z.object({
   key: z.string(), items: z.array(ItemSchema), changes: z.array(ChangeSchema),
   processed: z.array(z.object({ key: z.string(), itemId: z.string() })),
+  mutations: z.array(MemoryMutationSchema).optional(),
 })) });
 type State = z.infer<typeof StateSchema>;
 // Serialize all instances using the same absolute file in this process.
@@ -57,12 +58,13 @@ export class PersonalMemory {
         blockers: items.filter(item => item.kind === 'blocker'),
         questions: items.filter(item => item.kind === 'clarification'),
         changes: (person?.changes ?? []).filter(change => !change.acknowledged),
+        ...(person?.mutations ? { mutations: person.mutations } : {}),
       };
     }, false);
   }
 
   /** Sources must come from the caller's authorized selected-thread transport, not model arguments. */
-  async apply(ownerInput: Owner, input: Observation, sources: SourceMessage[]) {
+  async apply(ownerInput: Owner, input: Observation, sources: SourceMessage[], currentSource?: CurrentSource) {
     const owner = OwnerSchema.parse(ownerInput);
     const observation = ObservationSchema.parse(input);
     const messages = z.array(MessageSchema).parse(sources);
@@ -80,10 +82,22 @@ export class PersonalMemory {
     if (observation.kind === 'commitment' && !evidence.some(message => message.authorId === owner.userId)) {
       throw new Error('Commitments require owner-authored evidence; ask for confirmation');
     }
+    const explicit = observation.kind === 'complete' || observation.kind === 'correct' || observation.kind === 'undo';
+    let current: CurrentSource | undefined;
+    if (explicit) {
+      if (!currentSource) throw new Error('Explicit changes require the authenticated current source');
+      current = CurrentSourceSchema.parse(currentSource);
+      if (!evidence.every(message => message.authorId === owner.userId)) throw new Error('Explicit changes require only owner-authored evidence');
+      if (!evidence.some(message => message.threadId === current!.threadId && message.messageId === current!.messageId)) {
+        throw new Error('Explicit changes must cite the current source');
+      }
+    }
     const key = ownerKey(owner);
     // Do not use model paraphrases as identity. One observation of each kind per
     // source set/target is supported in this first slice.
-    const operationKey = digest([observation.kind,
+    const operationKey = explicit ? digest([observation.kind,
+      observation.kind === 'undo' ? '' : observation.taskId, current!.threadId, current!.messageId,
+    ]) : digest([observation.kind,
       observation.kind === 'blocker' ? observation.taskId : observation.kind === 'resolve' ? observation.blockerId : '',
       [...new Map(evidence.map(message => {
         const sourceId = [message.threadId, message.messageId];
@@ -96,7 +110,46 @@ export class PersonalMemory {
       const processed = person.processed.find(record => record.key === operationKey);
       if (processed) return { item: person.items.find(item => item.id === processed.itemId)!, changed: false };
       let item: MemoryItem;
-      if (observation.kind === 'resolve') {
+      if (observation.kind === 'complete' || observation.kind === 'correct' || observation.kind === 'undo') {
+        const mutation = observation.kind === 'undo'
+          ? person.mutations?.find(entry => entry.changeId === observation.changeId) : undefined;
+        if (observation.kind === 'undo' && !mutation) throw new Error('Change not found');
+        const taskId = observation.kind === 'undo' ? mutation!.itemId : observation.taskId;
+        const task = person.items.find(entry => entry.id === taskId && entry.kind === 'commitment');
+        if (!task) throw new Error('Commitment not found');
+        const before = MutationFieldsSchema.parse(task);
+        const changeId = randomUUID();
+        if (observation.kind === 'undo') {
+          if (mutation!.undoneBy) {
+            person.processed.push({ key: operationKey, itemId: task.id });
+            return { item: task, changed: false };
+          }
+          const last = person.mutations?.filter(entry => !entry.undoneBy).at(-1);
+          if (last?.changeId !== mutation!.changeId) throw new Error('Only the latest explicit change can be undone');
+          if (digest(before) !== digest(mutation!.after)) throw new Error('Cannot undo a stale change');
+          task.status = mutation!.before.status;
+          task.title = mutation!.before.title;
+          if (mutation!.before.deadline === undefined) delete task.deadline;
+          else task.deadline = mutation!.before.deadline;
+          mutation!.undoneBy = changeId;
+        } else {
+          if (observation.kind === 'complete') task.status = 'completed';
+          else {
+            if (observation.title !== undefined) task.title = observation.title;
+            if (observation.deadline !== undefined) task.deadline = observation.deadline;
+          }
+          const after = MutationFieldsSchema.parse(task);
+          if (digest(before) === digest(after)) {
+            person.processed.push({ key: operationKey, itemId: task.id });
+            return { item: task, changed: false };
+          }
+          (person.mutations ??= []).push({ changeId, itemId: task.id, kind: observation.kind, evidence, before, after });
+        }
+        task.mutationEvidence = [...(task.mutationEvidence ?? []), ...evidence];
+        person.processed.push({ key: operationKey, itemId: task.id });
+        person.changes.push({ id: changeId, itemId: task.id, kind: observation.kind, acknowledged: false });
+        return { item: task, changed: true };
+      } else if (observation.kind === 'resolve') {
         const blocker = person.items.find(item => item.id === observation.blockerId && item.kind === 'blocker');
         if (!blocker) throw new Error('Blocker not found');
         if (blocker.status === 'resolved') return { item: blocker, changed: false };

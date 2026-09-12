@@ -9,6 +9,8 @@ export const MessageSchema = z.object({
   url: z.url().refine(value => new URL(value).protocol === 'https:', 'Source URL must use https'),
 });
 export type SourceMessage = z.infer<typeof MessageSchema>;
+export const CurrentSourceSchema = z.object({ threadId: id, messageId: id });
+export type CurrentSource = z.infer<typeof CurrentSourceSchema>;
 const EvidenceRefSchema = z.object({ threadId: id, messageId: id, quote: z.string().min(1).max(50000) });
 const refs = z.array(EvidenceRefSchema).min(1).max(10);
 const timezone = z.string().refine(value => {
@@ -24,16 +26,27 @@ export const ObservationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('blocker'), title: id, taskId: id, evidence: refs }),
   z.object({ kind: z.literal('resolve'), blockerId: id, evidence: refs }),
   z.object({ kind: z.literal('clarification'), question: id, evidence: refs }),
+  z.object({ kind: z.literal('complete'), taskId: id, evidence: refs }).strict(),
+  z.object({ kind: z.literal('correct'), taskId: id, title: id.optional(), deadline: DeadlineSchema.optional(), evidence: refs })
+    .strict().refine(value => value.title !== undefined || value.deadline !== undefined, 'Correction requires a title or deadline'),
+  z.object({ kind: z.literal('undo'), changeId: id, evidence: refs }).strict(),
 ]);
 export type Observation = z.infer<typeof ObservationSchema>;
 export const EvidenceSchema = MessageSchema.extend({ quote: z.string() });
 export const ItemSchema = z.object({
   id, kind: z.enum(['commitment', 'blocker', 'clarification']), title: z.string(),
-  status: z.enum(['open', 'resolved']), evidence: z.array(EvidenceSchema),
+  status: z.enum(['open', 'resolved', 'completed']), evidence: z.array(EvidenceSchema),
   deadline: DeadlineSchema.optional(), taskId: id.optional(),
   resolutionEvidence: z.array(EvidenceSchema).optional(),
+  mutationEvidence: z.array(EvidenceSchema).optional(),
 });
 export type MemoryItem = z.infer<typeof ItemSchema>;
-export const ChangeSchema = z.object({ id, itemId: id, kind: z.enum(['commitment', 'blocker', 'resolve', 'clarification']), acknowledged: z.boolean() });
+export const ChangeSchema = z.object({ id, itemId: id, kind: z.enum(['commitment', 'blocker', 'resolve', 'clarification', 'complete', 'correct', 'undo']), acknowledged: z.boolean() });
 export type MemoryChange = z.infer<typeof ChangeSchema>;
-export type MemoryView = { commitments: MemoryItem[]; blockers: MemoryItem[]; questions: MemoryItem[]; changes: MemoryChange[] };
+export const MutationFieldsSchema = ItemSchema.pick({ status: true, title: true, deadline: true });
+export const MemoryMutationSchema = z.object({
+  changeId: id, itemId: id, kind: z.enum(['complete', 'correct']),
+  evidence: z.array(EvidenceSchema), before: MutationFieldsSchema, after: MutationFieldsSchema, undoneBy: id.optional(),
+});
+export type MemoryMutation = z.infer<typeof MemoryMutationSchema>;
+export type MemoryView = { commitments: MemoryItem[]; blockers: MemoryItem[]; questions: MemoryItem[]; changes: MemoryChange[]; mutations?: MemoryMutation[] };

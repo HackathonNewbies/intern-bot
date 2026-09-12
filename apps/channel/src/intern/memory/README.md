@@ -1,6 +1,46 @@
 # Personal work memory — Task 2
 
-First slice: persist a personal commitment → link an unresolved blocker → resolve the blocker from later evidence, leaving the commitment open. Provides CopilotKit Channels tools; the root Slack app is not automatically rewired.
+Persist commitments and linked blockers, resolve blockers from evidence, and explicitly complete/correct tasks or undo the last completion/correction. Provides CopilotKit Channels tools; the root Slack app is not automatically rewired.
+
+## Manual Slack test
+
+Stop any existing runtime using this Channel first (Ctrl+C in its terminal). From the repo root:
+
+```bash
+node --env-file=.env --import tsx apps/channel/src/intern/memory/slack-test.ts
+```
+
+This separate launcher uses the saved model, CHANNEL_CODE and CPK_INTELLIGENCE_API_KEY (legacy name supported). It listens on MEMORY_TEST_PORT or 3001. It leaves channel.tsx unchanged and stores test records under .data/memory-slack-test.json.
+
+Open a one-to-one DM with the bot. Send each message after the bot replies:
+
+1. “I'll send the Acme proposal Friday.”
+2. “The Acme proposal is waiting for pricing approval.”
+3. “Pricing for the Acme proposal was approved.”
+4. “What's still outstanding?”
+
+Expected: proposal remains open; approval blocker is resolved. This launcher tests only the current DM plus already saved evidence, not periodic tracking across selected work threads. Provider metadata must identify a one-to-one Slack DM; unrecognized/private-group/shared-channel metadata fails closed. Source links open the DM rather than an exact message. When provider timestamps are absent, inbound evidence uses receipt time. Actual model interpretation and Slack delivery must be verified by this manual sequence.
+
+### Isolated paired test bot
+
+For our `intern-memory-test` app, `.env.memory-test` holds its project key and channel code. The following explicitly overrides inherited shell variables without changing the team's `.env`:
+
+```bash
+node --env-file=.env --import tsx --input-type=module -e 'import {readFileSync} from "node:fs";import {parseEnv} from "node:util";Object.assign(process.env,parseEnv(readFileSync(".env.memory-test","utf8")));if(process.env.CHANNEL_CODE!=="intern-memory-test")throw new Error("Wrong test channel");await import("./apps/channel/src/intern/memory/slack-test.ts")'
+```
+
+The live managed gateway omitted workspace/DM metadata. The local-only workaround pins one verified Slack user and opaque conversation to its workspace and DM in ignored `.data/memory-test-pairing.json`. The pin applies only to `intern-memory-test`; all other users/conversations are rejected while paired. Use the same message surface as the successful pairing message: **our current pairing is the main DM composer (bottom-left), not nested reply threads on the right**. A probe only creates a candidate, never grants access: an operator must verify the actual Slack DM and user before approving its mapping locally. Do not commit pairing, credential, or memory files. This is not production DM authorization.
+
+After recording a task, try these in the paired conversation, waiting for each reply:
+
+1. “Change the Acme proposal deadline to September 18, 2026.”
+2. “I sent the Acme proposal; mark it done.”
+3. “Undo that completion.”
+4. “What tasks am I tracking?”
+
+Expected: the same task ID remains; it returns to open with its corrected deadline. Undo is limited to the latest eligible explicit completion/correction, not task creation, blocker resolution, or already delivered messages.
+
+Live check, September 12, 2026: the isolated bot recorded the fictional “Send the memory demo note” task for September 18, corrected its deadline to September 21, completed it, and undid completion. Slack confirmed each step; persisted state retained one task ID, open status, the September 21 deadline, and commitment/correct/complete/undo notices. The labeled demo task remains in local test memory. This verifies that sequence, not general extraction accuracy or production channel authorization.
 
 ## Use from the Slack integration
 
@@ -19,6 +59,8 @@ const { tools } = createMemoryTools(memory, resolveAuthorizedPrivateScope);
 
 Use `SourceMessage` and `Observation` from model.ts as the small module-local contract. No shared root interfaces or teammate files were changed.
 
+For `complete`, `correct`, and `undo`, the trusted resolver must additionally return `currentSource: {threadId, messageId}` for the current owner-authored inbound message. Every supplied mutation evidence reference must be owner-authored and include that source. Do not populate it from model arguments or an arbitrary older message. These mutations fail closed if omitted; existing ingestion callers remain compatible. Read `view.mutations` to select the exact latest non-undone change ID for undo. Persisted mutation evidence and notices survive restart; an undo queues a compensating notice.
+
 ## Briefing integration
 
 `await memory.view(owner)` returns commitments, blockers, clarification questions, and unacknowledged changes. Each item includes original evidence/URLs; resolved blockers also include resolution evidence. The model/tool return says whether a mutation actually changed state.
@@ -36,13 +78,15 @@ npm run verify
 
 Tests use fictional source messages and real disk persistence/tool handlers. A scripted AG-UI agent also exercises the real Channels run/tool loop through the inherited managed-gateway fixture, including private-scope denial. Coverage includes the complete three-step memory interaction, restart, duplicate/reordered evidence, replayed resolutions, ownership, and invalid evidence. These tests do not prove live model extraction accuracy, the eventual Slack scope resolver's authorization, or live Slack delivery.
 
+`evidence-boundaries.test.tsx` adds transport identity, atomic rejection, and clarification replay checks. `evidence-fixtures.ts` contains labeled semantic cases for future model evaluation; those labels are not executed accuracy tests. Lifecycle tests cover trusted current-source authorization, completion/correction/undo, retries, owner isolation, stale undo, and legacy file compatibility.
+
 ## Deliberate limits of this slice
 
 - Local JSON with atomic replacement and file sync; one process only. Calls to the same absolute path serialize within that process. Use one canonical path, not symlink aliases. No multi-process database guarantees or encrypted storage.
 - Model interprets intent and semantic relationships; code verifies schema, source identity, quote presence, task ownership, and evidence chronology. A valid quote is not proof that the model understood it correctly. Ambiguous interpretation should be recorded as a clarification; live labeled evaluation is still required.
 - One observation of a given kind per evidence set/target. Multiple commitments within one message, alternative evidence subsets, source edits/retractions, and semantic duplicate merging need the next ingestion iteration.
 - Existing records are not automatically updated from edited source text. This first slice is append-only except blocker resolution and notice acknowledgments.
-- Manual task completion, undo, answering/dismissing clarification questions, profile/goals, priority scoring, refresh freshness, and correction commands remain future Task 2 work. Date-only deadlines are preserved rather than assigned an invented time.
+- Answering/dismissing clarification questions, profile/goals, priority scoring, and refresh freshness remain future Task 2 work. Date-only deadlines are preserved rather than assigned an invented time.
 - No schema migration or cross-process locking yet. Invalid stored data fails visibly rather than being replaced with empty state.
 - CopilotKit's optional hosted Memory is not enabled; these tools use the explicit local work-state store.
 
