@@ -100,3 +100,7 @@ Run npm run verify and document the live Slack checks separately.
 Run `npm run verify` for root/channel typechecks and offline tests. Live Slack delivery, Exa search, and model responses require your own accounts and should be documented separately from local tests.
 
 Keep the pinned Channels/runtime pair and the `@ag-ui/client` override. The [Channels skill](../../.agents/skills/build-channels-agent/SKILL.md) supplies the verified API vocabulary. [Channels guide](https://copilotkit.ai/channels-guide.md) · [OpenTag reference app](https://github.com/CopilotKit/OpenTag)
+
+## Task A private work assistant
+
+The app entry point now uses the private Intern workflow. Open a verified one-to-one DM and send `start`, then `demo` for the fictional briefing. See [private workflow setup and tests](src/intern/slack/README.md) for selected-thread OAuth access, verified DM metadata, commands, and optional scheduled delivery. Calendar invitations remain approval-gated through the integrated calendar tool.

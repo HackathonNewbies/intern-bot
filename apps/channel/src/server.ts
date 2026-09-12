@@ -6,7 +6,7 @@
 import { createServer } from "node:http";
 import { CopilotKitIntelligence, CopilotRuntime } from "@copilotkit/runtime/v2";
 import { createCopilotNodeListener } from "@copilotkit/runtime/v2/node";
-import { channel } from "./channel";
+import { channel, internApp } from "./channel";
 import { required } from "./env";
 
 const intelligence = new CopilotKitIntelligence({
@@ -23,6 +23,7 @@ const runtime = new CopilotRuntime({
   channels: [channel],
 });
 
+let stopWorker: (() => void) | undefined;
 let teardown: (() => Promise<void>) | undefined;
 const shutdown = async () => {
   await teardown?.();
@@ -36,6 +37,7 @@ const channels = listener.channels;
 const server = createServer(listener);
 
 teardown = async () => {
+  stopWorker?.();
   await channels.stop();
   if (server.listening) server.close();
 };
@@ -58,8 +60,10 @@ if (status.overall !== "online" || status.channels[required("CHANNEL_CODE")] !==
   process.exit(1);
 }
 
+stopWorker = internApp.worker.start();
+
 const port = Number(process.env.PORT ?? 3000);
 server.listen(port, () => {
   console.log(`\n  ✓ Channel "${process.env.CHANNEL_CODE}" online — listening on :${port}`);
-  console.log(`    Invite the bot to a channel (/invite @yourbot), then @-mention it.\n`);
+  console.log(`    Open a one-to-one DM with Intern and send start.\n`);
 });

@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { PersonalMemory } from '../memory/store';
+import { createIngestionTools } from './ingest';
+const owner = { workspaceId: 'T1', userId: 'U1' };
+const source = { threadId: 'C1:1726000000.000001', messageId: '1726000000.000001', authorId: 'U1', text: 'I will send the proposal', sentAt: '2024-09-10T20:26:40.000Z', url: 'https://acme.slack.com/archives/C1/p1726000000000001' };
+test('background extraction executes Task B validation and exposes only provided sources', async () => {
+  const memory = new PersonalMemory(join(await mkdtemp(join(tmpdir(), 'intern-ingest-')), 'memory.json'));
+  const tools = createIngestionTools(memory, owner, [source]);
+  const read = await tools.read.execute({});
+  assert.equal(read.sources.length, 1);
+  await tools.record.execute({ observation: { kind: 'commitment', title: 'Send the proposal', deadline: { kind: 'unknown' }, evidence: [{ threadId: source.threadId, messageId: source.messageId, quote: source.text }] } });
+  assert.equal((await memory.view(owner)).commitments.length, 1);
+  assert.equal((await createIngestionTools(memory, owner, []).read.execute({})).memory.commitments.length, 0);
+  await assert.rejects(tools.record.execute({ observation: { kind: 'commitment', title: 'Fake', deadline: { kind: 'unknown' }, evidence: [{ threadId: source.threadId, messageId: source.messageId, quote: 'invented' }] } }));
+  assert.equal(tools.finished(), false);
+  await tools.finish.execute({});
+  assert.equal(tools.finished(), true);
+});
+test('replayed observation from an edited source never returns withheld historical text', async () => {
+  const memory = new PersonalMemory(join(await mkdtemp(join(tmpdir(), 'intern-edit-')), 'memory.json'));
+  const first = createIngestionTools(memory, owner, [source]);
+  await first.record.execute({ observation: { kind: 'commitment', title: 'Old private proposal', deadline: { kind: 'unknown' }, evidence: [{ threadId: source.threadId, messageId: source.messageId, quote: source.text }] } });
+  const edited = { ...source, text: 'I will send an updated report' };
+  const tools = createIngestionTools(memory, owner, [edited]);
+  const result = await tools.record.execute({ observation: { kind: 'commitment', title: 'Updated report', deadline: { kind: 'unknown' }, evidence: [{ threadId: edited.threadId, messageId: edited.messageId, quote: edited.text }] } });
+  assert.doesNotMatch(JSON.stringify(result), /Old private proposal|I will send the proposal/);
+  assert.match(JSON.stringify(result), /changed source|reconciliation/i);
+});

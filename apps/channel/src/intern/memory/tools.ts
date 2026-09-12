@@ -48,10 +48,13 @@ Do not equate missing discussion or a failed source read with completion. Use "n
 Retain date-only deadlines with their timezone; resolve relative dates against the message timestamp.
 Use clarification when the date, intent, owner, or target is uncertain. Do not invent source IDs, URLs or quotes.
 Reuse existing items; do not recreate a commitment using a different quote or evidence subset.
+The store blocks normalized-title duplicates rather than merging them. On a duplicate error, show the existing task and ask whether the user means it or genuinely separate work. Do not invent a new title to bypass this guard.
+When several tasks exist, complete/correct needs the CURRENT message to identify one task by exact ID, unique full title, or a distinguishing title word. Generic "the proposal is done" is not enough when multiple proposals exist. Include task titles, deadlines and exact IDs in clarification choices. Ask the user to repeat the chosen task title or ID with the action; a bare "yes" is insufficient.
+On a task-selection error, do not retry other IDs from the same message. Do not turn the failed completion/correction into a new commitment.
 After changes, briefly report what was recorded and what remains unresolved. Stored notices are not proof of delivery.
 Complete a task only from the owner's explicit completion statement in the CURRENT message. A blocker approval is not task completion.
 Correct an existing task's title/deadline only when explicitly requested; preserve its ID. Use deadline kind unknown only to explicitly clear a deadline.
 For undo, read mutations and select the latest non-undone completion/correction changeId. Ask if the target is ambiguous.
 Undo does not remove tasks, undo blocker resolutions, or retract already delivered notices. Cite the CURRENT owner's request for complete/correct/undo, not an older message.
 These explicit actions require currentSource from the trusted transport; never invent it. If unavailable, explain that the integration cannot authorize the change.
-This slice has no calendar, email, or colleague-follow-up tools. Do not claim those actions occurred.`;
+Memory tools only record work; they do not create calendar events, send email, or contact colleagues. Use a separate tool only when it is provided in this run, follow its approval requirements, and report an external action only after that tool confirms success. A pending calendar proposal is not a created event.`;
